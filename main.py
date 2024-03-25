@@ -1,71 +1,92 @@
-import os
 from cvzone.HandTrackingModule import HandDetector
 import cv2
+import os
+import numpy as np
 
+# Parameters
 width, height = 1280, 720
+gestureThreshold = 300
 folderPath = "Presentation"
 
+# Camera Setup
 cap = cv2.VideoCapture(0)
 cap.set(3, width)
 cap.set(4, height)
 
-# get the list of presentation images
 
-pathImages = sorted(os.listdir(folderPath), key=len)
+# Hand Detector
+detectorHand = HandDetector(detectionCon=0.8, maxHands=1)
 
-#variables
-imgNumber = 0
-hs, ws = 120, 213
-gestureThreshold = 300
+
+# Variables
 buttonPressed = False
-buttonCounter = 0
-buttonDelay = 30
+counter = 0
+imgNumber = 0
+hs, ws = int(120 * 1), int(213 * 1)  # width and height of small image
+delay = 30
 
-detector = HandDetector(detectionCon=0.5, maxHands=1)
+# imgNumber = 0
+# hs, ws = 120, 213
+# gestureThreshold = 300
+# buttonPressed=False
+# buttonCounter = 0
+# buttonDelay = 30
+
+
+# Get list of presentation images
+pathImages = sorted(os.listdir(folderPath), key=len)
+print(pathImages)
+
+
+
 while True:
+    # Get image frame
     success, img = cap.read()
     img = cv2.flip(img, 1)
     pathFullImage = os.path.join(folderPath, pathImages[imgNumber])
     imgCurrent = cv2.imread(pathFullImage)
 
-    hands, img = detector.findHands(img)
+    # Find the hand and its landmarks
+    hands, img = detectorHand.findHands(img)  # with draw
+    # Draw Gesture Threshold line
     cv2.line(img, (0, gestureThreshold), (width, gestureThreshold), (0, 255, 0), 10)
 
-    if hands and buttonPressed==False:
-        hand = hands[0]
-        fingers = detector.fingersUp(hand)
-        cx, cy = hand['center']
-        lmList = hand['lmList']
-        indexFinger = lmList[8][0:2]
+    if hands and buttonPressed is False:  # If hand is detected
 
-        if cy<=gestureThreshold:
-            # gesture 1: Left
+        hand = hands[0]
+        cx, cy = hand["center"]
+        fingers = detectorHand.fingersUp(hand)
+        lmList = hand["lmList"]  # List of 21 Landmark points
+        fingers = detectorHand.fingersUp(hand)  # List of which fingers are up
+
+        if cy <= gestureThreshold:  # If hand is at the height of the face
             if fingers == [1, 0, 0, 0, 0]:
-                print('Left')
+                print("Left")
+                buttonPressed = True
                 if imgNumber > 0:
-                    buttonPressed=True
                     imgNumber -= 1
 
-            #gesture 2: right
+            # right
             if fingers == [0, 0, 0, 0, 1]:
-                print('Right')
+                print("Right")
+                buttonPressed = True
                 if imgNumber < len(pathImages) - 1:
-                    buttonPressed=True
                     imgNumber += 1
 
-        # gesture 3: Show pointer
-        if fingers == [0, 1, 1, 0, 0]:
-            cv2.circle(imgCurrent, indexFinger, 12, (0, 0, 255), cv2.FILLED)
+    if buttonPressed:
+        counter += 1
+        if counter > delay:
+            counter = 0
+            buttonPressed = False
 
-        if buttonPressed:
-            buttonCounter += 1
-            if buttonCounter > buttonDelay:
-                counter = 0
-                buttonPressed = False
+    # adding webcam image on the slides
+    imgSmall = cv2.resize(img, (ws, hs))
+    h, w, _ = imgCurrent.shape
+    imgCurrent[0:hs, w - ws: w] = imgSmall
 
-        cv2.imshow("Slides", imgCurrent)
-        cv2.imshow("Image", img)
+    cv2.imshow("Slides", imgCurrent)
+    cv2.imshow("Image", img)
 
-        key = cv2.waitKey(1)
-        if key == ord('q'):
-            break
+    key = cv2.waitKey(1)
+    if key == ord('q'):
+        break
